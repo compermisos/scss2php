@@ -2,7 +2,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors',1);
 /**
- * convert less files to css
+ * convert scss files to css
  * 
  * a 'full'description
  * multilene is cool
@@ -13,7 +13,7 @@ ini_set('display_errors',1);
 */
 
 
-function parser($dirPath = './', $fileType = 'less', $recursive = 10 , $basedir = './'){
+function parser($dirPath = './', $fileType = 'scss', $recursive = 10 , $basedir = './'){
 	if($recursive == 0){
 		return;
 	}	
@@ -82,12 +82,37 @@ function deTree($tree, &$out = array()){
 	return $out;
 }
 
+function compileFile($fname, $outFname = null) {
+	if (!is_readable($fname)) {
+		throw new Exception('load error: failed to find '.$fname);
+	}
+	
+	$pi = pathinfo($fname);
+	
+	require "scss.inc.php";
+	require "CssMin.php";
+	$scss = new scssc();
+	
+	$out = $result = CssMin::minify($scss->compile(file_get_contents($fname), $fname));
+	
+	if ($outFname !== null) {
+		return file_put_contents($outFname, $out);
+	}
+	return $out;
+}
 
+// compile only if changed input has changed or output doesn't exist
+function checkedCompile($in, $out) {
+	if (!is_file($out) || filemtime($in) > filemtime($out)) {
+		compileFile($in, $out);
+		return true;
+	}
+	return false;
+}
 
-function genCSS($lessDir = 'less/', $cssDir = 'css/', $lessExt = 'less' ){
-	require "lessc.inc.php";
+function genCSS($scssDir = 'scss/', $cssDir = 'css/', $scssExt = 'scss' ){
 	$unclean = 1;
-	$tree = parser($lessDir, $lessExt, 10, $lessDir);
+	$tree = parser($scssDir, $scssExt, 10, $scssDir);
 	$cleanTree = array();
 	while($unclean){
 		if($cleanTree == $tree){
@@ -98,16 +123,15 @@ function genCSS($lessDir = 'less/', $cssDir = 'css/', $lessExt = 'less' ){
 		}
 	}
 	$tree = deTree($tree);
-	$less = new lessc;
 	foreach($tree as $file){
 		$cssName = $cssDir . $file['pathname'] . $file['namenotype'] . '.css';
-		$lessName = $lessDir . $file['pathname'] . $file['namenotype'] . '.' . $lessExt;
+		$scssName = $scssDir . $file['pathname'] . $file['namenotype'] . '.' . $scssExt;
 		$cssCDir = $cssDir . $file['pathname'];
 		if(!is_dir($cssCDir)){
 			mkdir($cssCDir, 0755, TRUE);
 		}
 		try {
-			$less->checkedCompile($lessName, $cssName);
+			checkedCompile($scssName, $cssName);
 		} catch (exception $e) {
 			echo "fatal error: " . $e->getMessage();
 		}
@@ -118,12 +142,12 @@ function genCSS($lessDir = 'less/', $cssDir = 'css/', $lessExt = 'less' ){
 /*generate('less/', 'css/', 'less');
 var_dump($argv);
 var_dump($argc);*/
-echo('Usage less2css.php less/ css/ less' . "\n");
+echo('Usage scss2css.php scss/ css/ scss' . "\n");
 $var = array();
 if(isset($argv[1])){
 	$var[1] = $argv[1];
 }else{
-	$var[1] = 'less/';
+	$var[1] = 'scss/';
 }
 if(isset($argv[2])){
 	$var[2] = $argv[2];
@@ -133,7 +157,7 @@ if(isset($argv[2])){
 if(isset($argv[3])){
 	$var[3] = $argv[3];
 }else{
-	$var[3] = 'less';
+	$var[3] = 'scss';
 }
 
 genCSS($var[1],$var[2],$var[3]);
